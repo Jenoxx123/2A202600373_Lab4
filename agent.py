@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from tools import search_flights, search_hotels, calculate_budget
 from dotenv import load_dotenv
+from logger import logger
 
 load_dotenv()
 
@@ -41,6 +42,8 @@ def agent_node(state: AgentState):
     if response.tool_calls:
         for tc in response.tool_calls:
             print(f"Gọi tool: {tc['name']}({tc['args']})")
+            # Log tool calls
+            logger.log_tool_call(tc['name'], tc['args'], "pending")
     else:
         print(f"Trả lời trực tiếp")
 
@@ -74,10 +77,33 @@ if __name__ == "__main__":
     while True:
         user_input = input("\nBạn: ").strip()
         if user_input.lower() in ("quit", "exit", "q"):
+            print("\n" + "=" * 60)
+            print("Cảm ơn bạn đã sử dụng TravelBuddy!")
+            
+            # Export conversation summary
+            summary = logger.get_conversation_summary()
+            print(f"\nThống kê phiên chat:")
+            print(f"  - Tổng số tin nhắn: {summary['total_messages']}")
+            print(f"  - Tin nhắn từ bạn: {summary['user_messages']}")
+            print(f"  - Tin nhắn từ AI: {summary['assistant_messages']}")
+            print(f"  - Số lần gọi tools: {summary['tool_calls']}")
+            print(f"\n📁 Log đã được lưu tại: {summary['log_file']}")
+            
+            # Export to text file
+            text_file = logger.export_to_text()
+            print(f"📄 Text version: {text_file}")
+            print("=" * 60)
             break
+
+        # Log user message
+        logger.log_user_message(user_input)
 
         print("\nTravelBuddy đang suy nghĩ...")
         # Add user message to state and invoke
         state = graph.invoke({"messages": state["messages"] + [("human", user_input)]})
         final = state["messages"][-1]
+        
+        # Log assistant response
+        logger.log_assistant_message(final.content)
+        
         print(f"\nTravelBuddy: {final.content}")
